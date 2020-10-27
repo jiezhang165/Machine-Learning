@@ -23,7 +23,7 @@ from matplotlib.colors import ListedColormap
 
 # Generate 200 2d feature points and their corresponding binary labels.
 X = np.random.rand(200, 2)
-y = np.zeros(200)
+y = np.zeros([200, 1])
 y[np.where(X[:, 0] < X[:, 1])] = 1
 
 # Create color maps
@@ -53,10 +53,6 @@ class Question:
             return True
         else:
             return False
-
-
-q_test = Question(0, 0.4)
-q_test.match(X[2, :])
 
 
 def split(rows, question):
@@ -126,19 +122,113 @@ def optimal_split(rows):
     return best_gain, best_question
 
 
-# def decisionTree(rows):
-#     gain, question = optimal_split(rows)
-#     #stopping condition
-#     if gain == 0:
-#         # leaf node
-#
-#     true_rows, false_rows = split(rows, question)
-#
-#     # Recursively build the true branch.
-#     true_branch = decisionTree(true_rows)
-#
-#     # Recursively build the false branch.
-#     false_branch = decisionTree(false_rows)
-#
-#     # Return a Question node.
-#     Question
+class Leaf:
+    """A Leaf node classifies data.
+    This holds a dictionary of class (e.g., "Apple") -> number of times
+    it appears in the rows from the training data that reach this leaf.
+    """
+
+    def __init__(self, rows):
+        self.predictions = class_counts(rows)
+
+
+class Decision_Node:
+    """A Decision Node asks a question.
+    This holds a reference to the question, and to the two child nodes.
+    """
+
+    def __init__(self,
+                 question,
+                 true_branch,
+                 false_branch):
+        self.question = question
+        self.true_branch = true_branch
+        self.false_branch = false_branch
+
+
+def decisionTree(rows):
+    gain, question = optimal_split(rows)
+    # stopping condition
+    if gain == 0:
+        # leaf node
+        return Leaf(rows)
+
+    true_rows, false_rows = split(rows, question)
+
+    # Recursively build the true branch.
+    true_branch = decisionTree(true_rows)
+
+    # Recursively build the false branch.
+    false_branch = decisionTree(false_rows)
+
+    # Return a Question node.
+    return Decision_Node(question, true_branch, false_branch)
+
+
+def print_tree(node, spacing=""):
+    """World's most elegant tree printing function."""
+
+    # Base case: we've reached a leaf
+    if isinstance(node, Leaf):
+        print(spacing + "Predict", node.predictions)
+        return
+
+    # Print the question at this node
+    print(spacing + str(node.question))
+
+    # Call this function recursively on the true branch
+    print(spacing + '--> True:')
+    print_tree(node.true_branch, spacing + "  ")
+
+    # Call this function recursively on the false branch
+    print(spacing + '--> False:')
+    print_tree(node.false_branch, spacing + "  ")
+
+
+def classify(row, node):
+    """See the 'rules of recursion' above."""
+
+    # Base case: we've reached a leaf
+    if isinstance(node, Leaf):
+        return node.predictions
+
+    # Decide whether to follow the true-branch or the false-branch.
+    # Compare the feature / value stored in the node,
+    # to the example we're considering.
+    if node.question.match(row):
+        return classify(row, node.true_branch)
+    else:
+        return classify(row, node.false_branch)
+
+
+#######
+# Demo:
+# The tree predicts the 1st row of our
+# training data is an apple with confidence 1.
+# my_tree = build_tree(training_data)
+# classify(training_data[0], my_tree)
+#######
+
+def print_leaf(counts):
+    """A nicer way to print the predictions at a leaf."""
+    total = sum(counts.values()) * 1.0
+    probs = {}
+    for lbl in counts.keys():
+        probs[lbl] = str(int(counts[lbl] / total * 100)) + "%"
+    return probs
+
+
+my_tree = decisionTree(np.hstack((X, y)))
+print_tree(my_tree)
+
+testing_data = [
+    [0.3, 0.7, 1],
+    [0.5, 0.6, 1],
+    [0.7, 0.2, 0],
+    [0.4, 0.5, 1],
+    [0.6, 0.1, 0],
+]
+
+for row in testing_data:
+    print("Actual: %s. Predicted: %s" %
+          (row[-1], print_leaf(classify(row, my_tree))))
